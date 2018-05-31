@@ -44,6 +44,10 @@ loop sock = do
         let yourPath = LazyText.concat [yourPathBase, path2, newLine]
         let body = LazyText.concat [yourMethod, yourPath]
 
+        if "/greeting" == path2
+            then putStrLn "trying this out"
+            else putStrLn "not this"
+
         let resp = okResp body
 
         return resp
