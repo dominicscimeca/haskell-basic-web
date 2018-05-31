@@ -21,17 +21,32 @@ main = withSocketsDo $ do
 loop :: Socket-> IO()
 loop sock = do
     (conn, _) <- accept sock
-    putStrLn "new Connection"
     forkIO $ respond conn
     loop sock
   where
     respond conn = do
       msg <- recv conn 1024
       request <- getRequest msg
-      print request
-      let resp = okResp "hello world!"
-      sendAll conn (ByteString.concat . LazyByte.toChunks $ toByteString resp)
+      handleRequest conn request
       close conn
+    handleRequest conn request = do
+        response <- getResponse request
+        sendResponse conn response
+    getResponse request = do
+        let newLine = LazyText.pack "\r\n"
+
+        let method2 = method request
+        let yourMethodBase = LazyText.pack "Here is your method: "
+        let yourMethod = LazyText.concat [yourMethodBase, method2, newLine]
+
+        let path2 = path request
+        let yourPathBase = LazyText.pack "Here is your path: "
+        let yourPath = LazyText.concat [yourPathBase, path2, newLine]
+        let body = LazyText.concat [yourMethod, yourPath]
+
+        let resp = okResp body
+
+        return resp
     getRequest msg = do
        let charMsg = Char8.unpack msg
        let requestSplit = splitOn "\r\n" charMsg
@@ -39,7 +54,9 @@ loop sock = do
        let mainString = requestSplit!!0
        let mainSplit = splitOn " " mainString
        let method = mainSplit!!0
+       let methodText = LazyText.pack method
        let path = mainSplit!!1
+       let pathText =LazyText.pack path
        let httpVersion = mainSplit!!2
 
        let requestWithoutMain = tail requestSplit
@@ -47,14 +64,16 @@ loop sock = do
        let requestTrim2 = init requestTrim
        let headers = map (splitOn ": ") requestTrim2
 
-       let request = HttpRequest{ method = method, path = path, httpVersion = httpVersion, headers = headers}
+       let request = HttpRequest{ method = methodText, path = pathText, httpVersion = httpVersion, headers = headers}
 
        return request
+    sendResponse conn resp = do
+       sendAll conn (ByteString.concat . LazyByte.toChunks $ toByteString resp)
 
 
 data Request = HttpRequest{
-    method :: [Char],
-    path :: [Char],
+    method :: LazyText.Text,
+    path :: LazyText.Text,
     httpVersion :: [Char],
     headers :: [[[Char]]]
 } deriving( Show, Eq )
